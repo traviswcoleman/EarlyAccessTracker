@@ -424,3 +424,12 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# --- EarlyAccessTracker ---
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Our local-install publish profile contains no secrets
+!**/PublishProfiles/LocalInstall.pubxml

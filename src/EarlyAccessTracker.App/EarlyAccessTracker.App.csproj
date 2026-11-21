@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- The Steam API key lives in %APPDATA%\Microsoft\UserSecrets\<this id>\secrets.json, never in the repo. -->
+    <UserSecretsId>EarlyAccessTracker-6f1c2a8e-3b4d-4e5f-9a7b-1c2d3e4f5a6b</UserSecretsId>
+    <AssemblyName>EarlyAccessTracker</AssemblyName>
+    <RootNamespace>EarlyAccessTracker.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep WinForms/Drawing out of global usings so they don't collide with Blazor types. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.AspNetCore.App.Internal.Assets only adds _framework/blazor.web.js when OutputType == 'Exe'.
+    We're a WinExe (no console window), so flip OutputType just for that target and restore it afterwards.
+  -->
+  <PropertyGroup>
+    <ResolveStaticWebAssetsInputsDependsOn>$(ResolveStaticWebAssetsInputsDependsOn);_EatPretendExeForBlazorAssets</ResolveStaticWebAssetsInputsDependsOn>
+  </PropertyGroup>
+  <Target Name="_EatPretendExeForBlazorAssets">
+    <PropertyGroup>
+      <_EatRealOutputType>$(OutputType)</_EatRealOutputType>
+      <OutputType>Exe</OutputType>
+    </PropertyGroup>
+  </Target>
+  <Target Name="_EatRestoreOutputType" AfterTargets="_AddBlazorFrameworkStaticWebAssets" Condition="'$(_EatRealOutputType)' != ''">
+    <PropertyGroup>
+      <OutputType>$(_EatRealOutputType)</OutputType>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EarlyAccessTracker.Core\EarlyAccessTracker.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.QuickGrid" Version="10.0.14" />
+  </ItemGroup>
+
+</Project>

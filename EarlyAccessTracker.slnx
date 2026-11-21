@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="scripts/Install-ScheduledTask.ps1" />
+    <File Path="scripts/Uninstall-ScheduledTask.ps1" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/EarlyAccessTracker.App/EarlyAccessTracker.App.csproj" />
+    <Project Path="src/EarlyAccessTracker.Core/EarlyAccessTracker.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EarlyAccessTracker.Tests/EarlyAccessTracker.Tests.csproj" />
+  </Folder>
+</Solution>

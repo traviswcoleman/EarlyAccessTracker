@@ -1,0 +1,67 @@
+@page "/syncs"
+@rendermode InteractiveServer
+@inject IDbContextFactory<TrackerDbContext> DbFactory
+
+<PageTitle>Sync history · Early Access Tracker</PageTitle>
+
+<h1>Sync history</h1>
+<p class="muted">
+    Scheduled syncs run at most once per day. A failed sync is retried after a pause, up to the daily attempt limit.
+    <em>Unavailable</em> items are apps Steam reports as delisted or returns without release data. They don't make a sync partial.
+</p>
+
+<div class="grid-wrap">
+    <table class="games">
+        <thead>
+            <tr>
+                <th>Started</th><th>Trigger</th><th>Outcome</th><th>Duration</th>
+                <th class="num">Owned</th><th class="num">Checked</th><th class="num">Failed</th>
+                <th class="num">Missing</th><th class="num">Unavailable</th><th class="num">Left EA</th><th class="num">Alerts</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in _runs)
+            {
+                <tr>
+                    <td>@r.StartedAt.ToLocalTime().ToString("g")</td>
+                    <td>@r.Trigger</td>
+                    <td><span class="pill @OutcomeClass(r.Outcome)">@r.Outcome</span></td>
+                    <td>@(r.FinishedAt is { } f ? $"{(f - r.StartedAt).TotalSeconds:0}s" : "—")</td>
+                    <td class="num">@r.OwnedGameCount</td>
+                    <td class="num">@r.SuccessfulCount / @r.RequestedCount</td>
+                    <td class="num">@r.FailedCount</td>
+                    <td class="num">@r.MissingCount</td>
+                    <td class="num">@r.UnavailableCount</td>
+                    <td class="num">@r.NewTransitionCount</td>
+                    <td class="num">@r.NewAlertCount</td>
+                </tr>
+                @if (!string.IsNullOrEmpty(r.ErrorSummary))
+                {
+                    <tr class="error-row"><td colspan="11"><pre>@r.ErrorSummary</pre></td></tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+@if (_runs.Count == 0)
+{
+    <p class="muted">No syncs yet.</p>
+}
+
+@code {
+    private List<SyncRun> _runs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _runs = await db.SyncRuns.AsNoTracking().OrderByDescending(r => r.StartedAt).Take(100).ToListAsync();
+    }
+
+    private static string OutcomeClass(SyncOutcome o) => o switch
+    {
+        SyncOutcome.Succeeded => "pill-released",
+        SyncOutcome.Partial => "pill-alert",
+        SyncOutcome.Failed => "pill-error",
+        _ => "pill-unknown",
+    };
+}

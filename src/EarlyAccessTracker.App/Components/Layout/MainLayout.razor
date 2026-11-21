@@ -1,0 +1,19 @@
+﻿@inherits LayoutComponentBase
+
+<header class="topbar">
+    <a class="brand" href="/"><span class="brand-badge">EA</span> Early Access Tracker</a>
+    <nav>
+        <NavLink href="/" Match="NavLinkMatch.All">Library</NavLink>
+        <NavLink href="/syncs">Sync history</NavLink>
+    </nav>
+</header>
+
+<main class="page">
+    @Body
+</main>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

@@ -1,0 +1,153 @@
+:root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --text: #1d2330;
+    --muted: #667085;
+    --border: #dfe3ea;
+    --accent: #1b6ec2;
+    --accent-text: #ffffff;
+    --ea-bg: #fff4d6;   --ea-fg: #8a5a00;
+    --ok-bg: #e2f5ea;   --ok-fg: #1f7a45;
+    --alert-bg: #ffe8d9; --alert-fg: #a3430f;
+    --err-bg: #fde4e4;  --err-fg: #a11d1d;
+    --unk-bg: #eceef2;  --unk-fg: #5b6474;
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #14171c;
+        --surface: #1c2027;
+        --text: #e6e9ef;
+        --muted: #9aa3b2;
+        --border: #2d333d;
+        --accent: #4c9be8;
+        --accent-text: #0b1420;
+        --ea-bg: #3a2f12;   --ea-fg: #f3c766;
+        --ok-bg: #163222;   --ok-fg: #7fd6a2;
+        --alert-bg: #3d2416; --alert-fg: #ffad7a;
+        --err-bg: #3b1a1a;  --err-fg: #ff9a9a;
+        --unk-bg: #2a2f38;  --unk-fg: #a7b0bf;
+        color-scheme: dark;
+    }
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
+h1:focus { outline: none; }
+h2 { font-size: 1.05rem; margin: 0; }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; font-size: .9em; }
+pre { white-space: pre-wrap; margin: .4rem 0; }
+.muted { color: var(--muted); }
+
+.topbar {
+    display: flex; align-items: center; gap: 2rem;
+    padding: .75rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 600; color: var(--text); display: flex; align-items: center; gap: .5rem; }
+.brand-badge {
+    background: #1b6ec2; color: #fff; border-radius: 6px;
+    font-size: .75rem; font-weight: 700; padding: .15rem .35rem;
+}
+.topbar nav { display: flex; gap: 1rem; }
+.topbar nav a { color: var(--muted); padding: .25rem 0; border-bottom: 2px solid transparent; }
+.topbar nav a.active { color: var(--text); border-bottom-color: var(--accent); text-decoration: none; }
+
+.page { max-width: 1280px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+
+.status-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.status-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1rem; }
+.status-card .label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.status-card .value { font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.status-card .sub { color: var(--muted); font-size: .85rem; margin-top: .25rem; }
+.sync-card { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+
+.banner { border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1rem; border: 1px solid transparent; }
+.banner-warn { background: var(--ea-bg); color: var(--ea-fg); }
+.banner-error { background: var(--err-bg); color: var(--err-fg); }
+.banner code { word-break: break-all; }
+
+.alerts { background: var(--alert-bg); border-radius: 10px; padding: .9rem 1rem; margin-bottom: 1rem; color: var(--text); }
+.alerts-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.alerts h2 { color: var(--alert-fg); }
+.alerts ul { list-style: none; margin: 0; padding: 0; }
+.alerts li { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .4rem 0; border-top: 1px solid color-mix(in srgb, var(--alert-fg) 20%, transparent); }
+.alerts li a { font-weight: 600; }
+.alerts .actions { margin-left: auto; display: flex; gap: .4rem; }
+
+.btn {
+    font: inherit; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text);
+    padding: .45rem .9rem;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.btn-small { padding: .2rem .55rem; font-size: .85rem; }
+.btn-ghost { background: transparent; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1.25rem 0 .75rem; }
+.search {
+    font: inherit; flex: 1 1 260px; max-width: 360px;
+    padding: .5rem .75rem; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip {
+    font: inherit; font-size: .85rem; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 999px; padding: .25rem .7rem;
+}
+.chip .count { color: var(--muted); margin-left: .25rem; font-variant-numeric: tabular-nums; }
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.chip.active .count { color: inherit; opacity: .8; }
+
+.grid-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+table.games { width: 100%; border-collapse: collapse; }
+table.games th, table.games td { padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.games td:first-child { white-space: normal; min-width: 240px; }
+table.games th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+table.games tr:last-child td { border-bottom: none; }
+table.games .num, table.games td[style*="right"] { text-align: right; font-variant-numeric: tabular-nums; }
+table.games .error-row td { white-space: normal; color: var(--err-fg); background: var(--err-bg); }
+
+/* QuickGrid pads short pages with empty <tr></tr> rows to keep height constant; don't draw them. */
+table.games tbody tr:empty { display: none; }
+
+.empty-state {
+    background: var(--surface); border: 1px dashed var(--border); border-radius: 10px;
+    padding: 2.5rem 1rem; text-align: center; color: var(--muted);
+}
+
+/* QuickGrid header buttons */
+table.games .col-title { font: inherit; }
+table.games button.col-title { background: none; border: none; color: inherit; cursor: pointer; padding: 0; text-transform: inherit; letter-spacing: inherit; font-weight: inherit; }
+table.games .col-options-button { display: none; }
+
+.pill { display: inline-block; border-radius: 999px; padding: .1rem .55rem; font-size: .8rem; font-weight: 600; }
+.pill-ea { background: var(--ea-bg); color: var(--ea-fg); }
+.pill-released { background: var(--ok-bg); color: var(--ok-fg); }
+.pill-alert { background: var(--alert-bg); color: var(--alert-fg); }
+.pill-error { background: var(--err-bg); color: var(--err-fg); }
+.pill-unknown { background: var(--unk-bg); color: var(--unk-fg); }
+
+.paginator { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-top: .6rem; color: var(--muted); }
+.paginator nav { display: flex; gap: .25rem; align-items: center; }
+.paginator button { font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; width: 2rem; height: 2rem; cursor: pointer; }
+.paginator button:disabled { opacity: .4; cursor: default; }
+
+.blazor-error-boundary { background: #b32121; padding: 1rem; color: white; }
+.blazor-error-boundary::after { content: "An error has occurred."; }

@@ -1,0 +1,306 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IDbContextFactory<TrackerDbContext> DbFactory
+@inject SyncCoordinator Coordinator
+@inject IOptionsMonitor<SteamOptions> SteamOptions
+@inject IOptionsMonitor<SyncOptions> SyncOptions
+@inject NavigationManager Nav
+
+<PageTitle>Early Access Tracker</PageTitle>
+
+@if (!SteamOptions.CurrentValue.IsConfigured)
+{
+    <section class="banner banner-warn">
+        <strong>Setup needed.</strong>
+        Add your Steam Web API key and 64-bit SteamID to <code>@SecretsLocation.FilePath</code>.
+        Your Steam profile's <em>Game details</em> must be Public for the library to be readable.
+        The file is reloaded automatically after you save it.
+    </section>
+}
+
+<section class="status-row">
+    <div class="status-card">
+        <div class="label">Last successful sync</div>
+        <div class="value">@(_lastGood?.FinishedAt?.ToLocalTime().ToString("g") ?? "Never")</div>
+        @if (_lastGood is not null)
+        {
+            <div class="sub">@_lastGood.SuccessfulCount of @_lastGood.RequestedCount checked · @_lastGood.Outcome</div>
+        }
+    </div>
+    <div class="status-card">
+        <div class="label">Library</div>
+        <div class="value">@_owned.Count games</div>
+        <div class="sub">
+            @Count("ea") in Early Access · @Count("unknown") unknown
+            @if (_hiddenUnavailable > 0)
+            {
+                <span title="Delisted or otherwise not available on the Steam store"> · @_hiddenUnavailable not on store (hidden)</span>
+            }
+        </div>
+    </div>
+    <div class="status-card sync-card">
+        @if (Coordinator.IsRunning)
+        {
+            <div class="label">Syncing</div>
+            <div class="sub">@(Coordinator.Progress ?? "Starting…")</div>
+        }
+        else
+        {
+            <button class="btn btn-primary" disabled="@(!_manual.ShouldRun)" @onclick="SyncNow">Sync now</button>
+            @if (!_manual.ShouldRun)
+            {
+                <div class="sub">@_manual.Reason</div>
+            }
+            @if (_syncMessage is not null)
+            {
+                <div class="sub">@_syncMessage</div>
+            }
+        }
+    </div>
+</section>
+
+@if (_lastRun is { Outcome: SyncOutcome.Failed or SyncOutcome.Partial } bad)
+{
+    <section class="banner @(bad.Outcome == SyncOutcome.Failed ? "banner-error" : "banner-warn")">
+        <strong>Last sync (@bad.StartedAt.ToLocalTime().ToString("g")) was @bad.Outcome.ToString().ToLowerInvariant().</strong>
+        Games that weren't checked keep their previous status.
+        <pre>@bad.ErrorSummary</pre>
+        <a href="/syncs">Sync history</a>
+    </section>
+}
+
+@if (_pending.Count > 0)
+{
+    <section class="alerts">
+        <div class="alerts-head">
+            <h2>@_pending.Count game@(_pending.Count == 1 ? " has" : "s have") come out of Early Access</h2>
+            <button class="btn" @onclick="() => SetAllPending(AlertStatus.Acknowledged)">Acknowledge all</button>
+        </div>
+        <ul>
+            @foreach (var g in _pending)
+            {
+                <li>
+                    <a href="@g.StoreUrl" target="_blank" rel="noopener">@g.Name</a>
+                    <span class="muted">left EA @Date(g.ReleasedFromEarlyAccessAt) · last played @LastPlayed(g)</span>
+                    <span class="actions">
+                        <button class="btn btn-small" @onclick="() => SetAlert(g, AlertStatus.Acknowledged)">Acknowledge</button>
+                        <button class="btn btn-small btn-ghost" @onclick="() => SetAlert(g, AlertStatus.Dismissed)">Dismiss</button>
+                    </span>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+<section class="toolbar">
+    <input class="search" type="search" placeholder="Search games…" @bind="_search" @bind:event="oninput" />
+    <div class="chips">
+        @foreach (var (key, label) in Filters)
+        {
+            <button class="chip @(_filter == key ? "active" : "")" @onclick="() => SetFilter(key)">
+                @label <span class="count">@Count(key)</span>
+            </button>
+        }
+    </div>
+</section>
+
+@if (!FilteredGames.Any())
+{
+    <div class="empty-state">
+        @if (_owned.Count == 0)
+        {
+            @(Coordinator.IsRunning ? "Importing your library… games will appear here as the sync progresses." : "No games yet. Run a sync to import your Steam library.")
+        }
+        else
+        {
+            @("No games match this filter.")
+        }
+    </div>
+}
+else
+{
+<div class="grid-wrap">
+    <QuickGrid Items="FilteredGames" Pagination="_pagination" Class="games">
+        <TemplateColumn Title="Game" SortBy="@BySortName" InitialSortDirection="SortDirection.Ascending" IsDefaultSortColumn="true">
+            <a href="@context.StoreUrl" target="_blank" rel="noopener">@context.Name</a>
+        </TemplateColumn>
+        <TemplateColumn Title="Early Access" SortBy="@ByEa">
+            @if (context.EarlyAccessCurrent == true) { <span class="pill pill-ea">Early Access</span> }
+            else if (context.EarlyAccessCurrent == false) { <span class="pill pill-released">Released</span> }
+            else if (context.StoreUnavailable) { <span class="pill pill-unknown" title="Steam reports this app as unavailable in the store">Unavailable</span> }
+            else { <span class="pill pill-unknown">Unknown</span> }
+        </TemplateColumn>
+        <TemplateColumn Title="Last played" SortBy="@ByLastPlayed">@LastPlayed(context)</TemplateColumn>
+        <TemplateColumn Title="Playtime" SortBy="@ByPlaytime" Align="Align.End">@Hours(context.PlaytimeMinutes)</TemplateColumn>
+        <TemplateColumn Title="Left Early Access" SortBy="@ByReleased">
+            @if (context.ReleasedFromEarlyAccessAt is { } r)
+            {
+                <span title="First observed by this app">@r.ToLocalTime().ToString("d")</span>
+            }
+            else if (context.PossiblyFormerlyEarlyAccess)
+            {
+                <span class="muted" title="Steam lists an earlier original release (@Date(context.OriginalSteamReleaseDate)) — possibly an Early Access launch before this app was tracking it.">
+                    possibly @Date(context.SteamReleaseDate)
+                </span>
+            }
+        </TemplateColumn>
+        <TemplateColumn Title="Alert" SortBy="@ByAlert">
+            @switch (context.AlertStatus)
+            {
+                case AlertStatus.Pending:
+                    <span class="pill pill-alert">Pending</span>
+                    break;
+                case AlertStatus.Acknowledged:
+                case AlertStatus.Dismissed:
+                    <span class="muted">@context.AlertStatus</span>
+                    <button class="btn btn-small btn-ghost" title="Show this alert again" @onclick="() => SetAlert(context, AlertStatus.Pending)">Undo</button>
+                    break;
+            }
+        </TemplateColumn>
+    </QuickGrid>
+</div>
+<Paginator State="_pagination" />
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "filter")] private string? FilterParam { get; set; }
+
+    private static readonly (string Key, string Label)[] Filters =
+    [
+        ("all", "All"),
+        ("ea", "In Early Access"),
+        ("alerts", "Released & unplayed"),
+        ("released", "Left EA (observed)"),
+        ("possible", "Possibly formerly EA"),
+        ("recent", "Played recently"),
+        ("handled", "Acknowledged / dismissed"),
+        ("unknown", "Unknown status"),
+    ];
+
+    private List<Game> _owned = [];
+    private List<Game> _pending = [];
+    private int _hiddenUnavailable;
+    private bool _loading;
+    private SyncRun? _lastRun, _lastGood;
+    private SyncDecision _manual = new(true, "");
+    private string? _syncMessage;
+    private string _search = "";
+    private string _filter = "all";
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 50 };
+
+    private static readonly GridSort<Game> BySortName = GridSort<Game>.ByAscending(g => g.Name);
+    private static readonly GridSort<Game> ByEa = GridSort<Game>.ByDescending(g => g.EarlyAccessCurrent).ThenAscending(g => g.Name);
+    private static readonly GridSort<Game> ByLastPlayed = GridSort<Game>.ByDescending(g => g.LastPlayedAt);
+    private static readonly GridSort<Game> ByPlaytime = GridSort<Game>.ByDescending(g => g.PlaytimeMinutes);
+    private static readonly GridSort<Game> ByReleased = GridSort<Game>.ByDescending(g => g.ReleasedFromEarlyAccessAt).ThenDescending(g => g.PossiblyFormerlyEarlyAccess);
+    private static readonly GridSort<Game> ByAlert = GridSort<Game>.ByDescending(g => g.AlertStatus == AlertStatus.Pending).ThenAscending(g => g.AlertStatus);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Filters.Any(f => f.Key == FilterParam)) _filter = FilterParam!;
+        Coordinator.Changed += OnCoordinatorChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        // Games Steam reports as not on the store (delisted etc.) are hidden from the dashboard entirely.
+        var owned = await db.Games.AsNoTracking().Where(g => g.Owned).ToListAsync();
+        _owned = owned.Where(g => !g.StoreUnavailable).ToList();
+        _hiddenUnavailable = owned.Count - _owned.Count;
+        _pending = _owned.Where(g => g.AlertStatus == AlertStatus.Pending).OrderBy(g => g.Name).ToList();
+        _lastRun = await db.SyncRuns.AsNoTracking().Where(r => r.Outcome != SyncOutcome.Running)
+            .OrderByDescending(r => r.StartedAt).FirstOrDefaultAsync();
+        _lastGood = await db.SyncRuns.AsNoTracking()
+            .Where(r => r.Outcome == SyncOutcome.Succeeded || r.Outcome == SyncOutcome.Partial)
+            .OrderByDescending(r => r.StartedAt).FirstOrDefaultAsync();
+        _manual = await Coordinator.CheckManualAsync(CancellationToken.None);
+    }
+
+    // Reload on every progress tick so games appear (and statuses fill in) while a sync is running.
+    private void OnCoordinatorChanged() => _ = InvokeAsync(async () =>
+    {
+        if (!_loading)
+        {
+            _loading = true;
+            try { await LoadAsync(); }
+            finally { _loading = false; }
+        }
+        StateHasChanged();
+    });
+
+    private async Task SyncNow()
+    {
+        _syncMessage = null;
+        // Fire and forget: progress arrives through Coordinator.Changed.
+        _ = Task.Run(async () =>
+        {
+            var (run, refusal) = await Coordinator.RunManualAsync(CancellationToken.None);
+            await InvokeAsync(() =>
+            {
+                _syncMessage = refusal ?? (run is null ? null : $"Finished: {run.Outcome}, {run.NewAlertCount} new alert(s).");
+                StateHasChanged();
+            });
+        });
+        await Task.Yield();
+    }
+
+    private async Task SetAlert(Game game, AlertStatus status)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        await db.Games.Where(g => g.AppId == game.AppId).ExecuteUpdateAsync(s => s
+            .SetProperty(g => g.AlertStatus, status)
+            .SetProperty(g => g.AlertStatusChangedAt, now));
+        await LoadAsync();
+        Coordinator.NotifyDataChanged();
+    }
+
+    private async Task SetAllPending(AlertStatus status)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        await db.Games.Where(g => g.AlertStatus == AlertStatus.Pending).ExecuteUpdateAsync(s => s
+            .SetProperty(g => g.AlertStatus, status)
+            .SetProperty(g => g.AlertStatusChangedAt, now));
+        await LoadAsync();
+    }
+
+    private void SetFilter(string key)
+    {
+        _filter = key;
+        Nav.NavigateTo(key == "all" ? "/" : $"/?filter={key}", replace: true);
+    }
+
+    private bool PlayedRecently(Game g) =>
+        g.LastPlayedAt is { } lp && lp >= DateTime.UtcNow.AddDays(-SyncOptions.CurrentValue.InactivityThresholdDays);
+
+    private bool Matches(Game g, string filter) => filter switch
+    {
+        "ea" => g.EarlyAccessCurrent == true,
+        "alerts" => g.AlertStatus == AlertStatus.Pending,
+        "released" => g.ReleasedFromEarlyAccessAt is not null,
+        "possible" => g.PossiblyFormerlyEarlyAccess,
+        "recent" => PlayedRecently(g),
+        "handled" => g.AlertStatus is AlertStatus.Acknowledged or AlertStatus.Dismissed,
+        "unknown" => g.EarlyAccessCurrent is null,
+        _ => true,
+    };
+
+    private int Count(string filter) => _owned.Count(g => Matches(g, filter));
+
+    private IQueryable<Game> FilteredGames => _owned
+        .Where(g => Matches(g, _filter))
+        .Where(g => string.IsNullOrWhiteSpace(_search) || g.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+        .AsQueryable();
+
+    private static string Date(DateTime? d) => d?.ToLocalTime().ToString("d") ?? "—";
+
+    private static string LastPlayed(Game g) => g.LastPlayedAt is { } lp ? lp.ToLocalTime().ToString("d") : "Never";
+
+    private static string Hours(int minutes) => minutes == 0 ? "—" : minutes < 60 ? $"{minutes} min" : $"{minutes / 60.0:0.#} h";
+
+    public void Dispose() => Coordinator.Changed -= OnCoordinatorChanged;
+}
