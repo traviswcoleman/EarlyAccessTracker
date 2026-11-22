@@ -32,7 +32,7 @@
         <div class="label">Library</div>
         <div class="value">@_owned.Count games</div>
         <div class="sub">
-            @Count("ea") in Early Access · @Count("unknown") unknown
+            @Count("ea") in Early Access · @Count("toplay") to play
             @if (_hiddenUnavailable > 0)
             {
                 <span title="Delisted or otherwise not available on the Steam store"> · @_hiddenUnavailable not on store (hidden)</span>
@@ -81,7 +81,7 @@
             @foreach (var g in _pending)
             {
                 <li>
-                    <a href="@g.StoreUrl" target="_blank" rel="noopener">@g.Name</a>
+                    <a href="@g.CommunityUrl" target="_blank" rel="noopener">@g.Name</a>
                     <span class="muted">left EA @Date(g.ReleasedFromEarlyAccessAt) · last played @LastPlayed(g)</span>
                     <span class="actions">
                         <button class="btn btn-small" @onclick="() => SetAlert(g, AlertStatus.Acknowledged)">Acknowledge</button>
@@ -123,7 +123,7 @@ else
 <div class="grid-wrap">
     <QuickGrid Items="FilteredGames" Pagination="_pagination" Class="games">
         <TemplateColumn Title="Game" SortBy="@BySortName" InitialSortDirection="SortDirection.Ascending" IsDefaultSortColumn="true">
-            <a href="@context.StoreUrl" target="_blank" rel="noopener">@context.Name</a>
+            <a href="@context.CommunityUrl" target="_blank" rel="noopener">@context.Name</a>
         </TemplateColumn>
         <TemplateColumn Title="Early Access" SortBy="@ByEa">
             @if (context.EarlyAccessCurrent == true) { <span class="pill pill-ea">Early Access</span> }
@@ -145,17 +145,15 @@ else
                 </span>
             }
         </TemplateColumn>
-        <TemplateColumn Title="Alert" SortBy="@ByAlert">
-            @switch (context.AlertStatus)
+        <TemplateColumn Title="To Play" SortBy="@ByToPlay">
+            @if (GameRules.ReleaseFromEarlyAccessDate(context) is not null)
             {
-                case AlertStatus.Pending:
-                    <span class="pill pill-alert">Pending</span>
-                    break;
-                case AlertStatus.Acknowledged:
-                case AlertStatus.Dismissed:
-                    <span class="muted">@context.AlertStatus</span>
-                    <button class="btn btn-small btn-ghost" title="Show this alert again" @onclick="() => SetAlert(context, AlertStatus.Pending)">Undo</button>
-                    break;
+                <label class="toplay" title="@(context.AlertStatus == AlertStatus.Dismissed ? "Ignored. Untick to list it again." : "Tick to ignore this game.")">
+                    <input type="checkbox" checked="@(context.AlertStatus == AlertStatus.Dismissed)"
+                           @onchange="e => SetIgnored(context, (bool)e.Value!)" />
+                    @if (context.AlertStatus == AlertStatus.Dismissed) { <span class="muted">Ignored</span> }
+                    else if (GameRules.IsToPlay(context)) { <span class="pill pill-alert">To play</span> }
+                </label>
             }
         </TemplateColumn>
     </QuickGrid>
@@ -170,12 +168,11 @@ else
     [
         ("all", "All"),
         ("ea", "In Early Access"),
-        ("alerts", "Released & unplayed"),
+        ("toplay", "To Play"),
         ("released", "Left EA (observed)"),
         ("possible", "Possibly formerly EA"),
         ("recent", "Played recently"),
-        ("handled", "Acknowledged / dismissed"),
-        ("unknown", "Unknown status"),
+        ("ignored", "Ignored"),
     ];
 
     private List<Game> _owned = [];
@@ -194,7 +191,7 @@ else
     private static readonly GridSort<Game> ByLastPlayed = GridSort<Game>.ByDescending(g => g.LastPlayedAt);
     private static readonly GridSort<Game> ByPlaytime = GridSort<Game>.ByDescending(g => g.PlaytimeMinutes);
     private static readonly GridSort<Game> ByReleased = GridSort<Game>.ByDescending(g => g.ReleasedFromEarlyAccessAt).ThenDescending(g => g.PossiblyFormerlyEarlyAccess);
-    private static readonly GridSort<Game> ByAlert = GridSort<Game>.ByDescending(g => g.AlertStatus == AlertStatus.Pending).ThenAscending(g => g.AlertStatus);
+    private static readonly GridSort<Game> ByToPlay = GridSort<Game>.ByDescending(g => GameRules.IsToPlay(g)).ThenAscending(g => g.AlertStatus == AlertStatus.Dismissed);
 
     protected override async Task OnInitializedAsync()
     {
@@ -247,6 +244,18 @@ else
         await Task.Yield();
     }
 
+    private async Task SetIgnored(Game game, bool ignored)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        // Un-ignoring keeps already-notified games Acknowledged so the sync doesn't toast them again.
+        await db.Games.Where(g => g.AppId == game.AppId).ExecuteUpdateAsync(s => s
+            .SetProperty(g => g.AlertStatus, g => ignored ? AlertStatus.Dismissed : g.AlertedAt == null ? AlertStatus.None : AlertStatus.Acknowledged)
+            .SetProperty(g => g.AlertStatusChangedAt, now));
+        await LoadAsync();
+        Coordinator.NotifyDataChanged();
+    }
+
     private async Task SetAlert(Game game, AlertStatus status)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -280,12 +289,11 @@ else
     private bool Matches(Game g, string filter) => filter switch
     {
         "ea" => g.EarlyAccessCurrent == true,
-        "alerts" => g.AlertStatus == AlertStatus.Pending,
+        "toplay" => GameRules.IsToPlay(g),
         "released" => g.ReleasedFromEarlyAccessAt is not null,
         "possible" => g.PossiblyFormerlyEarlyAccess,
         "recent" => PlayedRecently(g),
-        "handled" => g.AlertStatus is AlertStatus.Acknowledged or AlertStatus.Dismissed,
-        "unknown" => g.EarlyAccessCurrent is null,
+        "ignored" => g.AlertStatus == AlertStatus.Dismissed,
         _ => true,
     };
 

@@ -74,7 +74,7 @@ public sealed class TrayApplicationContext(
             var text = run.NewAlertCount == 1
                 ? "1 game has come out of early access"
                 : $"{run.NewAlertCount} games have come out of early access";
-            ShowToast("Early Access Tracker", text, ToolTipIcon.Info, "?filter=alerts");
+            ShowToast("Early Access Tracker", text, ToolTipIcon.Info, "?filter=toplay");
         }
     });
 

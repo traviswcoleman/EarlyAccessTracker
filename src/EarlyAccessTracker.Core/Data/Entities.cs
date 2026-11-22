@@ -54,7 +54,7 @@ public class Game
         && original < release;
 
     [NotMapped]
-    public string StoreUrl => $"https://store.steampowered.com/app/{AppId}/";
+    public string CommunityUrl => $"https://steamcommunity.com/app/{AppId}";
 }
 
 public class StatusHistory

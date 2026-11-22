@@ -151,3 +151,4 @@ table.games .col-options-button { display: none; }
 
 .blazor-error-boundary { background: #b32121; padding: 1rem; color: white; }
 .blazor-error-boundary::after { content: "An error has occurred."; }
+.toplay { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }

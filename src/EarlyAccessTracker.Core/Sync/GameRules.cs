@@ -48,4 +48,15 @@ public static class GameRules
         && game.ReleasedFromEarlyAccessAt is { } released
         && (game.LastPlayedAt is null
             || (game.LastPlayedAt < released && game.LastPlayedAt < nowUtc - inactivityThreshold));
+
+    /// <summary>When the game left (or possibly left) Early Access; null if it is not known to have.</summary>
+    public static DateTime? ReleaseFromEarlyAccessDate(Game game) =>
+        game.ReleasedFromEarlyAccessAt ?? (game.PossiblyFormerlyEarlyAccess ? game.SteamReleaseDate : null);
+
+    /// <summary>Left (or possibly left) Early Access and hasn't been played since, unless the user ignored it.</summary>
+    public static bool IsToPlay(Game game) =>
+        game.Owned
+        && game.AlertStatus != AlertStatus.Dismissed
+        && ReleaseFromEarlyAccessDate(game) is { } release
+        && (game.LastPlayedAt is null || game.LastPlayedAt < release);
 }
