@@ -54,6 +54,42 @@ public sealed class SyncEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ReleasedGames_AreNotRechecked_ButEaAndNewGamesAre()
+    {
+        _steam.Owned.Add(new OwnedGame(1, "Early", 0, null));
+        _steam.Owned.Add(new OwnedGame(2, "Released", 0, null));
+        _steam.SetEa(1, true);
+        _steam.SetEa(2, false);
+        await SyncAsync();
+
+        _time.Now = _time.Now.AddDays(1);
+        _steam.Owned.Add(new OwnedGame(3, "New", 0, null));
+        _steam.SetEa(3, true);
+        _steam.SetEa(2, true); // would flip back if it were asked; it must not be asked
+        var run = await SyncAsync();
+
+        Assert.Equal(2, run.RequestedCount);
+        Assert.Equal(false, Load(2).EarlyAccessCurrent);
+        Assert.Equal(true, Load(3).EarlyAccessCurrent);
+    }
+
+    [Fact]
+    public async Task NothingToCheck_Succeeds_WithoutCallingSteam()
+    {
+        _steam.Owned.Add(new OwnedGame(1, "Released", 0, null));
+        _steam.SetEa(1, false);
+        await SyncAsync();
+
+        _time.Now = _time.Now.AddDays(1);
+        var calls = _steam.StoreCalls;
+        var run = await SyncAsync();
+
+        Assert.Equal(SyncOutcome.Succeeded, run.Outcome);
+        Assert.Equal(0, run.RequestedCount);
+        Assert.Equal(calls, _steam.StoreCalls);
+    }
+
+    [Fact]
     public async Task FailedBatch_IsPartial_AndKeepsPreviousState()
     {
         for (var i = 1; i <= 4; i++)

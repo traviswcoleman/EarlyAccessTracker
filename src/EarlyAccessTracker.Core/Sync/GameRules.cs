@@ -49,6 +49,9 @@ public static class GameRules
         && (game.LastPlayedAt is null
             || (game.LastPlayedAt < released && game.LastPlayedAt < nowUtc - inactivityThreshold));
 
+    /// <summary>Only unchecked or still-Early-Access games need Steam; a released game never returns to EA.</summary>
+    public static bool NeedsStatusCheck(Game game) => game.EarlyAccessCurrent != false;
+
     /// <summary>When the game left (or possibly left) Early Access; null if it is not known to have.</summary>
     public static DateTime? ReleaseFromEarlyAccessDate(Game game) =>
         game.ReleasedFromEarlyAccessAt ?? (game.PossiblyFormerlyEarlyAccess ? game.SteamReleaseDate : null);

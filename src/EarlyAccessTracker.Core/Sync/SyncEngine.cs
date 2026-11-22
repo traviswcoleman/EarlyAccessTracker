@@ -57,7 +57,7 @@ public sealed class SyncEngine(
             await db.SaveChangesAsync(ct);
 
             // 2. Early Access status, sequential batches.
-            var ids = owned.Select(o => o.AppId).Distinct().ToList();
+            var ids = owned.Select(o => o.AppId).Distinct().Where(id => GameRules.NeedsStatusCheck(games[id])).ToList();
             run.RequestedCount = ids.Count;
             var batches = ids.Chunk(Math.Max(1, options.BatchSize)).ToList();
             var consecutiveFailures = 0;
@@ -141,7 +141,7 @@ public sealed class SyncEngine(
             if (run.MissingCount > 0)
                 errors.Add($"{run.MissingCount} requested app(s) were missing from Steam's responses.");
 
-            run.Outcome = run.SuccessfulCount == 0 ? SyncOutcome.Failed
+            run.Outcome = run.SuccessfulCount == 0 && run.RequestedCount > 0 ? SyncOutcome.Failed
                 : run.FailedCount + run.MissingCount > 0 ? SyncOutcome.Partial
                 : SyncOutcome.Succeeded;
         }
